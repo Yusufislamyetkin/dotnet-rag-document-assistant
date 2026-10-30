@@ -63,7 +63,9 @@ public sealed partial class MockChatCompletionService(TimeSpan? tokenDelay = nul
     private static string Rewrite(string content)
     {
         var question = content[(content.LastIndexOf("Last user message:", StringComparison.Ordinal) + 18)..].Trim();
-        if (Words(question).Count > 6) return question;
+        // Only follow-ups that refer back ("it", "they", "that one"...) need the previous question as context.
+        var refersBack = ReferenceWords().IsMatch(question);
+        if (!refersBack || Words(question).Count > 6) return question;
         var previous = ConversationUser().Matches(content).Select(m => m.Groups[1].Value.Trim()).LastOrDefault();
         return previous is null ? question : $"{previous} {question}";
     }
@@ -126,6 +128,9 @@ public sealed partial class MockChatCompletionService(TimeSpan? tokenDelay = nul
 
     [GeneratedRegex(@"<source id=""(?<id>doc\d+)""[^>]*pages=""(?<pages>[\d-]+)"">\s*(?<text>.*?)\s*</source>", RegexOptions.Singleline)]
     private static partial Regex SourceBlock();
+
+    [GeneratedRegex(@"\b(it|its|they|them|their|this|that|these|those|he|she|one|ones)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ReferenceWords();
 
     [GeneratedRegex(@"<page n=""(\d+)""/>")]
     private static partial Regex PageMarker();
