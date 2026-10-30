@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Pgvector;
 using RagAssistant.Application.Abstractions;
 using RagAssistant.Domain;
@@ -19,6 +20,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<LlmUsage> LlmUsages => Set<LlmUsage>();
+
+    public void ChangeTrackerClear() => ChangeTracker.Clear();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -46,7 +49,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Content).IsRequired();
             e.Property(x => x.Embedding)
                 .HasColumnType($"vector({EmbeddingDimensions})")
-                .HasConversion(v => v == null ? null : new Vector(v), v => v == null ? null : v.ToArray());
+                .HasConversion(v => v == null ? null : new Vector(v), v => v == null ? null : v.ToArray(),
+                    // Embeddings are replaced, never mutated in place: reference equality is enough for change tracking.
+                    new ValueComparer<float[]?>((a, b) => ReferenceEquals(a, b), v => v == null ? 0 : v.Length, v => v));
             e.HasIndex(x => new { x.DocumentId, x.ChunkIndex }).IsUnique();
             e.HasIndex(x => x.Embedding).HasMethod("hnsw").HasOperators("vector_cosine_ops");
             // Generated tsvector column for PostgreSQL full-text search (not mapped to the domain model).

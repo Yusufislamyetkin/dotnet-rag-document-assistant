@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using RagAssistant.Api;
@@ -18,6 +19,11 @@ builder.Host.UseSerilog((ctx, services, lc) => lc
     .ReadFrom.Services(services)
     .Enrich.FromLogContext()
     .WriteTo.Console());
+
+var maxUploadBytes = builder.Configuration.GetValue("Ingestion:MaxFileBytes", 20L * 1024 * 1024)
+    * builder.Configuration.GetValue("Ingestion:MaxFilesPerUpload", 10) + 1024 * 1024;
+builder.WebHost.ConfigureKestrel(k => k.Limits.MaxRequestBodySize = maxUploadBytes);
+builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = maxUploadBytes);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddHttpContextAccessor();
@@ -63,6 +69,7 @@ app.UseRateLimiter();
 
 app.MapHealthChecks("/health");
 app.MapAuthEndpoints();
+app.MapDocumentEndpoints();
 
 app.Run();
 

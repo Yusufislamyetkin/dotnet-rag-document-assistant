@@ -11,4 +11,5 @@ public interface IAppDbContext
     DbSet<ChatMessage> ChatMessages { get; }
     DbSet<LlmUsage> LlmUsages { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    void ChangeTrackerClear();
 }
