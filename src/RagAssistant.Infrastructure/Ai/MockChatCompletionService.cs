@@ -84,7 +84,7 @@ public sealed partial class MockChatCompletionService(TimeSpan? tokenDelay = nul
             foreach (var sentence in Sentences().Split(source.Groups["text"].Value))
             {
                 var s = sentence.Trim();
-                if (s.Length < 30 || s.Length > 600) continue;
+                if (s.Length < 60 || s.Length > 600) continue; // skip headings and run-on fragments
                 var words = Words(s);
                 var overlap = terms.Count(words.Contains);
                 if (overlap == 0) continue;
