@@ -5,8 +5,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Anthropic;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
+using RagAssistant.Application.Chat;
+using RagAssistant.Application.Retrieval;
 using RagAssistant.Application;
+using ChatOptions = RagAssistant.Application.ChatOptions;
 using RagAssistant.Application.Abstractions;
 using RagAssistant.Application.Documents;
 using RagAssistant.Application.Ingestion;
@@ -103,5 +108,36 @@ public static class DependencyInjection
             return new EmbeddingService(new HashingEmbeddingGenerator(AppDbContext.EmbeddingDimensions), "Mock",
                 HashingEmbeddingGenerator.ModelName, tokens, logger);
         });
+
+        services.AddSingleton<IChatModel>(sp => CreateChatModel(sp, auxiliary: false));
+        services.AddSingleton<IAuxiliaryChatModel>(sp => CreateChatModel(sp, auxiliary: true));
+
+        services.AddScoped<IChunkSearch, PgChunkSearch>();
+        services.AddScoped<HybridRetriever>();
+        services.AddScoped<ChatService>();
+        services.Configure<RetrievalOptions>(config.GetSection(RetrievalOptions.Section));
+        services.Configure<ChatOptions>(config.GetSection(ChatOptions.Section));
+    }
+
+    private static SemanticKernelChatModel CreateChatModel(IServiceProvider sp, bool auxiliary)
+    {
+        var o = sp.GetRequiredService<IOptions<LlmOptions>>().Value;
+        var tokens = sp.GetRequiredService<ITokenCounter>();
+        switch (o.Resolve())
+        {
+            case LlmProviderKind.Anthropic:
+            {
+                var model = auxiliary ? o.Anthropic.RewriteModel ?? o.Anthropic.Model : o.Anthropic.Model;
+                var client = new AnthropicClient { ApiKey = o.Anthropic.ApiKey! };
+                return new SemanticKernelChatModel(new AnthropicChatCompletionService(client, model), "Anthropic", model, tokens);
+            }
+            case LlmProviderKind.OpenAI:
+            {
+                var model = auxiliary ? o.OpenAI.RewriteModel ?? o.OpenAI.ChatModel : o.OpenAI.ChatModel;
+                return new SemanticKernelChatModel(new OpenAIChatCompletionService(model, o.OpenAI.ApiKey!), "OpenAI", model, tokens);
+            }
+            default:
+                return new SemanticKernelChatModel(new MockChatCompletionService(), "Mock", MockChatCompletionService.ModelName, tokens);
+        }
     }
 }

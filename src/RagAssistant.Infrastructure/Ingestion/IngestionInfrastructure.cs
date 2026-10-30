@@ -9,28 +9,8 @@ using RagAssistant.Application.Abstractions;
 using RagAssistant.Application.Ingestion;
 using RagAssistant.Domain;
 using RagAssistant.Infrastructure.Persistence;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace RagAssistant.Infrastructure.Ingestion;
-
-public sealed class PdfPigTextExtractor : IPdfTextExtractor
-{
-    public IReadOnlyList<PageText> Extract(Stream pdf)
-    {
-        try
-        {
-            using var document = PdfDocument.Open(pdf);
-            return document.GetPages()
-                .Select(p => new PageText(p.Number, ContentOrderTextExtractor.GetText(p)))
-                .ToList();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new IngestionException($"Could not read PDF: {ex.Message}");
-        }
-    }
-}
 
 public sealed class StorageOptions
 {

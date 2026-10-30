@@ -70,6 +70,7 @@ app.UseRateLimiter();
 app.MapHealthChecks("/health");
 app.MapAuthEndpoints();
 app.MapDocumentEndpoints();
+app.MapChatEndpoints();
 
 app.Run();
 

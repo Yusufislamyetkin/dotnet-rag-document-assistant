@@ -20,7 +20,7 @@ public sealed class RetrievalOptions
     /// <summary>Reciprocal Rank Fusion constant (k in 1 / (k + rank)). 60 is the value from the original RRF paper.</summary>
     public int RrfK { get; set; } = 60;
     /// <summary>
-    /// If the best vector cosine similarity is below this value and full-text search found nothing,
+    /// If the best vector cosine similarity is below this value,
     /// the assistant answers "not found in your documents" without calling the LLM.
     /// Tune per embedding model: hashed mock embeddings and OpenAI embeddings live on different scales.
     /// </summary>
