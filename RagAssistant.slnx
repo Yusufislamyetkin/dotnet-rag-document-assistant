@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/eval/">
+    <Project Path="eval/RagAssistant.Eval/RagAssistant.Eval.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/RagAssistant.Api/RagAssistant.Api.csproj" />
+    <Project Path="src/RagAssistant.Application/RagAssistant.Application.csproj" />
+    <Project Path="src/RagAssistant.Domain/RagAssistant.Domain.csproj" />
+    <Project Path="src/RagAssistant.Infrastructure/RagAssistant.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RagAssistant.IntegrationTests/RagAssistant.IntegrationTests.csproj" />
+    <Project Path="tests/RagAssistant.UnitTests/RagAssistant.UnitTests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ragassistant
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rag}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d ragassistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: src/RagAssistant.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=ragassistant;Username=rag;Password=${POSTGRES_PASSWORD:-rag}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-local-demo-signing-key-change-me-0123456789}
+      Llm__Provider: ${LLM_PROVIDER:-Auto}
+      Llm__Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      Llm__Anthropic__Model: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
+      Llm__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      Llm__OpenAI__ChatModel: ${OPENAI_CHAT_MODEL:-gpt-4.1-mini}
+      Embeddings__Provider: ${EMBEDDINGS_PROVIDER:-Auto}
+      Embeddings__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      Demo__SeedSamples: ${DEMO_SEED_SAMPLES:-true}
+      Storage__Root: /data/uploads
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    ports:
+      - "${API_PORT:-5080}:8080"
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  uploads:

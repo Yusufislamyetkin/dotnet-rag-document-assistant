@@ -1,0 +1,11 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+node_modules/
+dist/
+.env
+data/
+TestResults/
+eval/results/*.json
