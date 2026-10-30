@@ -40,7 +40,9 @@ public static partial class CitationParser
                     invalid.Add($"{alias}:{page}");
                     continue;
                 }
-                citations.Add(new Citation(source.Alias, source.DocumentId, source.FileName, page, chunk.ChunkId, chunk.Content));
+                var snippet = chunk.Segments().FirstOrDefault(s => s.Page == page).Text;
+                citations.Add(new Citation(source.Alias, source.DocumentId, source.FileName, page, chunk.ChunkId,
+                    string.IsNullOrEmpty(snippet) ? chunk.Content : snippet));
             }
         }
         return new CitationParseResult(citations, invalid);

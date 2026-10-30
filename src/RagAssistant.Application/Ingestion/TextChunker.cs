@@ -4,7 +4,10 @@ using RagAssistant.Application.Abstractions;
 
 namespace RagAssistant.Application.Ingestion;
 
-public sealed record ChunkDraft(int PageStart, int CharStart, int PageEnd, int CharEnd, string Content, int TokenCount);
+/// <param name="PageNumbers">Pages the chunk touches, in order.</param>
+/// <param name="PageOffsets">Offset in <paramref name="Content"/> where the text of the matching page starts.</param>
+public sealed record ChunkDraft(int PageStart, int CharStart, int PageEnd, int CharEnd, string Content, int TokenCount,
+    IReadOnlyList<int> PageNumbers, IReadOnlyList<int> PageOffsets);
 
 /// <summary>
 /// Sentence-aware chunker. Packs whole sentences into chunks of at most <c>maxTokens</c> and repeats the trailing
@@ -59,14 +62,21 @@ public sealed partial class TextChunker(ITokenCounter tokens)
     private ChunkDraft Build(List<Sentence> sentences)
     {
         var sb = new StringBuilder();
+        var pages = new List<int>();
+        var offsets = new List<int>();
         for (var i = 0; i < sentences.Count; i++)
         {
             if (i > 0) sb.Append(' ');
+            if (i == 0 || sentences[i].Page != sentences[i - 1].Page)
+            {
+                pages.Add(sentences[i].Page);
+                offsets.Add(sb.Length);
+            }
             sb.Append(sentences[i].Text);
         }
-        var content = sb.ToString().Trim();
+        var content = sb.ToString();
         return new ChunkDraft(sentences[0].Page, sentences[0].Start, sentences[^1].Page, sentences[^1].End,
-            content, tokens.Count(content));
+            content, tokens.Count(content), pages, offsets);
     }
 
     internal IEnumerable<Sentence> SplitSentences(PageText page, int maxTokens)

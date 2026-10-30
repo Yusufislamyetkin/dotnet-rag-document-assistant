@@ -61,7 +61,26 @@ public sealed class DocumentChunk
     public int CharEnd { get; set; }
     public string Content { get; set; } = "";
     public int TokenCount { get; set; }
+    /// <summary>Pages covered by the chunk; <see cref="PageOffsets"/> holds where each one starts inside <see cref="Content"/>.</summary>
+    public int[] PageNumbers { get; set; } = [];
+    public int[] PageOffsets { get; set; } = [];
     public float[]? Embedding { get; set; }
+
+    /// <summary>Splits the content into (page, text) segments using the stored page offsets.</summary>
+    public static IEnumerable<(int Page, string Text)> Segments(string content, int pageStart, IReadOnlyList<int> pages, IReadOnlyList<int> offsets)
+    {
+        if (pages.Count == 0 || pages.Count != offsets.Count)
+        {
+            yield return (pageStart, content);
+            yield break;
+        }
+        for (var i = 0; i < pages.Count; i++)
+        {
+            var start = Math.Clamp(offsets[i], 0, content.Length);
+            var end = i + 1 < offsets.Count ? Math.Clamp(offsets[i + 1], start, content.Length) : content.Length;
+            yield return (pages[i], content[start..end].Trim());
+        }
+    }
 
     public Document? Document { get; set; }
 }

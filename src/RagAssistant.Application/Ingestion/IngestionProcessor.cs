@@ -68,6 +68,8 @@ public sealed class IngestionProcessor(
                         CharEnd = d.CharEnd,
                         Content = d.Content,
                         TokenCount = d.TokenCount,
+                        PageNumbers = [.. d.PageNumbers],
+                        PageOffsets = [.. d.PageOffsets],
                         Embedding = result.Vectors[i]
                     });
                 }

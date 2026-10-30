@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RagAssistant.Application.Abstractions;
+using RagAssistant.Domain;
 
 namespace RagAssistant.Application.Retrieval;
 
@@ -50,7 +51,12 @@ public interface IChunkSearch
 
 public sealed record RetrievedChunk(
     Guid ChunkId, Guid DocumentId, string FileName, int PageStart, int PageEnd, string Content,
-    double FusedScore, double? VectorSimilarity, int? VectorRank, int? FullTextRank);
+    double FusedScore, double? VectorSimilarity, int? VectorRank, int? FullTextRank,
+    IReadOnlyList<int>? PageNumbers = null, IReadOnlyList<int>? PageOffsets = null)
+{
+    public IEnumerable<(int Page, string Text)> Segments() =>
+        DocumentChunk.Segments(Content, PageStart, PageNumbers ?? [], PageOffsets ?? []);
+}
 
 public sealed record RetrievalResult(IReadOnlyList<RetrievedChunk> Chunks, double BestVectorSimilarity, int FullTextHits,
     int EmbeddingTokens)
@@ -83,7 +89,7 @@ public sealed class HybridRetriever(
         var ids = fused.Select(f => f.Id).ToList();
         var rows = await db.DocumentChunks.AsNoTracking()
             .Where(c => ids.Contains(c.Id))
-            .Select(c => new { c.Id, c.DocumentId, c.Document!.FileName, c.PageStart, c.PageEnd, c.Content })
+            .Select(c => new { c.Id, c.DocumentId, c.Document!.FileName, c.PageStart, c.PageEnd, c.Content, c.PageNumbers, c.PageOffsets })
             .ToDictionaryAsync(c => c.Id, ct);
 
         var vectorRank = vector.Select((v, i) => (v, i)).ToDictionary(x => x.v.Id, x => (x.i + 1, x.v.Score));
@@ -95,7 +101,7 @@ public sealed class HybridRetriever(
             var hasVector = vectorRank.TryGetValue(f.Id, out var vr);
             return new RetrievedChunk(r.Id, r.DocumentId, r.FileName, r.PageStart, r.PageEnd, r.Content, f.Score,
                 hasVector ? vr.Score : null, hasVector ? vr.Item1 : null,
-                textRank.TryGetValue(f.Id, out var tr) ? tr : null);
+                textRank.TryGetValue(f.Id, out var tr) ? tr : null, r.PageNumbers, r.PageOffsets);
         }).ToList();
 
         var best = vector.Count > 0 ? vector[0].Score : 0;

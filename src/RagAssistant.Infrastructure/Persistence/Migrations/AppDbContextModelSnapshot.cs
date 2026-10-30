@@ -375,6 +375,16 @@ namespace RagAssistant.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("page_end");
 
+                    b.PrimitiveCollection<int[]>("PageNumbers")
+                        .IsRequired()
+                        .HasColumnType("integer[]")
+                        .HasColumnName("page_numbers");
+
+                    b.PrimitiveCollection<int[]>("PageOffsets")
+                        .IsRequired()
+                        .HasColumnType("integer[]")
+                        .HasColumnName("page_offsets");
+
                     b.Property<int>("PageStart")
                         .HasColumnType("integer")
                         .HasColumnName("page_start");

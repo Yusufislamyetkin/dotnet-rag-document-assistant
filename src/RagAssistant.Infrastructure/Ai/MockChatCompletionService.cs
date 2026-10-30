@@ -81,7 +81,12 @@ public sealed partial class MockChatCompletionService(TimeSpan? tokenDelay = nul
         {
             var alias = source.Groups["id"].Value;
             var page = source.Groups["pages"].Value.Split('-')[0];
-            foreach (var sentence in Sentences().Split(source.Groups["text"].Value))
+            // The text alternates between <page n="X"/> markers and that page's text.
+            var parts = PageMarker().Split(source.Groups["text"].Value);
+            var segments = new List<(string Page, string Text)> { (page, parts[0]) };
+            for (var i = 1; i + 1 < parts.Length; i += 2) segments.Add((parts[i], parts[i + 1]));
+
+            foreach (var (segmentPage, sentence) in segments.SelectMany(seg => Sentences().Split(seg.Text).Select(s => (seg.Page, s))))
             {
                 var s = sentence.Trim();
                 if (s.Length < 60 || s.Length > 600) continue; // skip headings and run-on fragments
@@ -90,7 +95,7 @@ public sealed partial class MockChatCompletionService(TimeSpan? tokenDelay = nul
                 if (overlap == 0) continue;
                 // Favour sentences covering more of the question; mild length normalisation.
                 var score = overlap / (double)terms.Count + overlap / Math.Sqrt(words.Count + 4) * 0.3;
-                candidates.Add((score, s, $"[{alias}:{page}]", order++));
+                candidates.Add((score, s, $"[{alias}:{segmentPage}]", order++));
             }
         }
 
@@ -121,6 +126,9 @@ public sealed partial class MockChatCompletionService(TimeSpan? tokenDelay = nul
 
     [GeneratedRegex(@"<source id=""(?<id>doc\d+)""[^>]*pages=""(?<pages>[\d-]+)"">\s*(?<text>.*?)\s*</source>", RegexOptions.Singleline)]
     private static partial Regex SourceBlock();
+
+    [GeneratedRegex(@"<page n=""(\d+)""/>")]
+    private static partial Regex PageMarker();
 
     [GeneratedRegex(@"<question>\s*(.*?)\s*</question>", RegexOptions.Singleline)]
     private static partial Regex QuestionBlock();
