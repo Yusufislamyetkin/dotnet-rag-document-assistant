@@ -1,47 +1,80 @@
+<div align="center">
+
 # RAG Document Assistant
+
+### Chat with your PDFs. Every answer cites its page.
+
+A self-hosted document Q&A system built with **.NET 10**, **Semantic Kernel**, **Claude / OpenAI** and **PostgreSQL + pgvector**. Answers stream token by token, every claim links to the exact page of the source PDF, and if the answer isn't in your documents the assistant says so instead of making one up.
 
 [![CI](https://github.com/Yusufislamyetkin/dotnet-rag-document-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/Yusufislamyetkin/dotnet-rag-document-assistant/actions/workflows/ci.yml)
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)
 ![Semantic Kernel](https://img.shields.io/badge/Semantic%20Kernel-1.81-5C2D91)
+![Claude](https://img.shields.io/badge/LLM-Claude%20%7C%20OpenAI-D97757)
 ![PostgreSQL + pgvector](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-336791?logo=postgresql&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
-**Upload PDFs, ask questions in plain language, and get streamed answers that cite the exact document and page. When the answer isn't in your documents, the assistant says so instead of guessing.**
+[**Quick start**](#quick-start) · [**Features**](#features) · [**Architecture**](#architecture) · [**Evaluation**](#evaluation) · [**API**](#api)
 
-![Chat with citations and the PDF viewer highlighting the cited passage](docs/images/demo-chat-citation.jpg)
+<br>
 
-*Demo mode (no API key): the answer cites page 23, the viewer opens that page with the passage highlighted, and an off-topic question gets "not found".*
+![Demo: ask a question, get a streamed answer with citations, click a citation to open the PDF at the highlighted passage](docs/images/demo.gif)
 
-## What problem this solves
+</div>
 
-Teams keep their knowledge in PDFs: policies, contracts, manuals and standards. Finding one answer means opening several files and searching by hand. A generic chatbot answers quickly, but it can't show where an answer came from, and it will make things up when it doesn't know.
+---
 
-This project is a self-hosted document assistant built to be trusted:
+## Why this exists
 
-- **Every answer is traceable.** Citations are checked against the passages the model actually saw. Clicking one opens the PDF at that page with the passage highlighted.
-- **It admits when it doesn't know.** If nothing relevant is retrieved, the user gets "I couldn't find the answer to that in your documents", and no LLM call is made.
-- **Costs are visible.** Every LLM and embedding call is logged with token counts and an estimated USD cost, per user, and shown in a usage panel.
-- **Data stays separated.** Every query is scoped to the signed-in user's own documents.
-- **No vendor lock-in.** Claude or OpenAI is chosen in configuration. Without any key, the app runs fully offline in demo mode.
+Companies keep their knowledge in PDFs: policies, contracts, manuals, standards. Finding one answer means opening several files and searching by hand. Generic chatbots answer fast, but they can't show where an answer came from, and they invent things when they don't know.
+
+RAG Document Assistant is built to be **trusted**:
+
+| | |
+|---|---|
+| 🔎 **Traceable** | Every answer cites `[document:page]`. Citations are validated against the passages the model actually saw; one click opens the PDF at that page with the passage highlighted. |
+| 🙅 **Honest** | When nothing relevant is retrieved, the user gets *"I couldn't find the answer to that in your documents"*, and no LLM call is made. |
+| 💸 **Cost-aware** | Every LLM and embedding call is logged with tokens, latency and estimated USD, per user, per model and per day. |
+| 🔐 **Isolated** | JWT auth; every query is scoped to the signed-in user's own documents. Rate limits per user. |
+| 🔌 **Provider-agnostic** | Claude or OpenAI is a configuration switch. With no key at all, the full app runs offline in demo mode. |
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/04-citation-pdf-highlight.png" alt="Citation opens the PDF viewer at the cited page with the passage highlighted"><br><sub><b>Click a citation</b>: the viewer jumps to page 31 and highlights the cited passage.</sub></td>
+    <td width="50%"><img src="docs/images/05-not-found.png" alt="Off-topic question answered with not found"><br><sub><b>No hallucinations</b>: an off-topic question gets "not found", with zero LLM tokens spent.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/03-streamed-answer.png" alt="Streamed answer with inline citation chips"><br><sub><b>Streaming answers</b> with inline citation chips and per-answer token/cost stats.</sub></td>
+    <td width="50%"><img src="docs/images/06-usage-cost.png" alt="Usage and cost panel"><br><sub><b>Usage & cost panel</b>: tokens and estimated USD by operation, model and day.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/02-workspace.png" alt="Workspace with documents and suggested questions"><br><sub><b>Workspace</b>: drag-and-drop upload, ingestion status, page and chunk counts.</sub></td>
+    <td width="50%" align="center"><img src="docs/images/07-mobile.png" alt="Mobile layout" width="240"><br><sub><b>Responsive</b>: the same experience on a phone.</sub></td>
+  </tr>
+</table>
+
+> The screenshots and GIF were recorded in demo mode (offline mock model), which is why answers start with "demo mode: extractive mock model". With an API key configured, the same UI shows answers written by Claude or GPT. A video version is in [`docs/images/demo.mp4`](docs/images/demo.mp4).
 
 ## Features
 
-| Area | What is implemented |
+| Area | What you get |
 |---|---|
-| Upload | Multi-file PDF upload (drag and drop), 20 MB limit per file, extension + `%PDF-` magic-byte validation, SHA-256 de-duplication per user |
-| Ingestion | `BackgroundService` reading from `System.Threading.Channels`; status `Uploaded → Processing → Ready / Failed` with the error message; restarts re-queue unfinished documents; failed documents can be retried |
-| Extraction | PdfPig with layout analysis (Docstrum blocks + reading order), so multi-column pages read correctly; text cleaning (de-hyphenation, whitespace, soft hyphens) |
-| Chunking | ~800 tokens with 100-token overlap, never splits mid-sentence (except a single sentence longer than a chunk); stores page range, character offsets and per-page offsets inside each chunk |
-| Embeddings | OpenAI `text-embedding-3-small` through Semantic Kernel, batched, Polly retry with exponential backoff + jitter on 429/5xx |
-| Retrieval | pgvector cosine (HNSW index) + PostgreSQL full-text search (`ts_rank`, GIN index), merged with Reciprocal Rank Fusion; configurable top-k; optional filter by selected documents |
-| Chat | Persisted sessions; follow-up questions rewritten into standalone search queries; grounded system prompt that requires `[docN:page]` citations; answer streamed token by token over SSE |
-| Citations | Parsed from the answer, validated against the retrieved chunks (invalid ones are dropped and counted), returned as structured JSON; UI chips open the viewer at the page with the passage highlighted |
-| "I don't know" | Below a similarity threshold the API answers "not found" without calling the LLM; the prompt also tells the model to use that exact sentence |
-| Auth | ASP.NET Core Identity (email/password) + JWT bearer; every query filtered by user id |
-| Guardrails | Per-user rate limiting (chat, search, upload) and per-IP limiting (auth); max question length; document text escaped and fenced as untrusted data (prompt-injection defence) |
-| Cost & observability | `llm_usage` table (tokens in/out, estimated USD, latency per call); `/api/usage` + UI usage panel; Serilog; OpenTelemetry traces and metrics (OTLP export when configured); `/health` with DB check |
-| Providers | `Anthropic` (default `claude-sonnet-5-5`, official Anthropic C# SDK), `OpenAI`, or `Mock`, all behind Semantic Kernel's `IChatCompletionService` |
+| **Upload** | Multi-file drag-and-drop upload, 20 MB per file, extension + `%PDF-` magic-byte validation, SHA-256 de-duplication per user |
+| **Ingestion** | Background worker on `System.Threading.Channels`; status `Uploaded → Processing → Ready / Failed` with the error message; unfinished work is re-queued on restart; failed documents can be retried |
+| **Extraction** | PdfPig with layout analysis (Docstrum blocks + reading order), so multi-column pages read correctly; de-hyphenation and whitespace cleanup |
+| **Chunking** | ~800 tokens with 100-token overlap, never splits mid-sentence; each chunk stores its page range, character offsets and a per-page map |
+| **Embeddings** | OpenAI `text-embedding-3-small` through Semantic Kernel, batched, Polly retry with exponential backoff + jitter on 429/5xx |
+| **Retrieval** | pgvector cosine (HNSW index) + PostgreSQL full-text search (GIN index), merged with Reciprocal Rank Fusion; configurable top-k; optional filter by selected documents |
+| **Chat** | Persisted sessions; follow-up questions rewritten into standalone search queries; grounded system prompt; answers streamed over Server-Sent Events |
+| **Citations** | Parsed from the answer, validated against retrieved chunks (invalid ones dropped and counted), returned as structured JSON; UI chips open the viewer at the page with the passage highlighted |
+| **"I don't know"** | Below a similarity threshold the API answers "not found" without calling the LLM; the prompt also instructs the model to use the same sentence |
+| **Auth** | ASP.NET Core Identity + JWT bearer; every query filtered by user id |
+| **Guardrails** | Per-user rate limiting (chat, search, upload), per-IP limiting (auth), max question length, document text escaped and fenced as untrusted data (prompt-injection defence) |
+| **Observability** | `llm_usage` table with tokens, USD and latency per call; `/api/usage` + usage panel; Serilog; OpenTelemetry traces and metrics (OTLP); `/health` with a database check |
+| **Providers** | `Anthropic` (default `claude-sonnet-5-5`, official Anthropic C# SDK), `OpenAI`, or `Mock`, all behind Semantic Kernel's `IChatCompletionService` |
 
 ## Architecture
 
@@ -81,39 +114,38 @@ tests/                          xUnit unit tests, Testcontainers integration tes
 samples/                        public-domain PDFs used for the demo and the eval
 ```
 
-## Key decisions
+## Key design decisions
 
-**Hybrid search instead of vectors alone.** Embeddings capture meaning, but they miss exact terms: product codes, clause numbers, acronyms like "C-SCRM". PostgreSQL full-text search catches those. The two result lists are merged with Reciprocal Rank Fusion, which uses only ranks. Cosine similarity and `ts_rank` never have to be put on a common scale, and there is no weight to tune. Both live in the same PostgreSQL, so there is no separate vector database to run.
+**Hybrid search, not vectors alone.** Embeddings capture meaning but miss exact terms such as product codes, clause numbers and acronyms like "C-SCRM". PostgreSQL full-text search catches those. Both result lists are merged with Reciprocal Rank Fusion, which only uses ranks, so cosine similarity and `ts_rank` never need a common scale and there is no weight to tune. Everything lives in one PostgreSQL: no separate vector database to run or pay for.
 
-**Sentence-aware chunks with overlap and page maps.** Chunks are packed from whole sentences up to ~800 tokens, and the last ~100 tokens are repeated at the start of the next chunk. A fact that sits on a chunk border is then still retrievable with its context. Each chunk stores where every page starts inside it, and the prompt marks pages with `<page n="12"/>`. The model can cite the exact page even when a chunk spans two pages, and the viewer highlights only that page's text.
+**Sentence-aware chunks with page maps.** Chunks are packed from whole sentences up to ~800 tokens, and the last ~100 tokens repeat at the start of the next chunk, so a fact on a chunk border stays retrievable with its context. Each chunk records where every page starts inside it, and the prompt marks pages with `<page n="12"/>`. The model can cite the exact page even when a chunk spans two pages, and the viewer highlights only that page's text.
 
-**Provider abstraction.** The application talks to its own `IChatModel` / `IEmbeddingService` ports. Infrastructure implements them on top of Semantic Kernel's `IChatCompletionService` and `IEmbeddingGenerator`. Claude has its own connector built on the official Anthropic SDK. Switching provider is a configuration change (`Llm__Provider`). The same seam makes a fake LLM possible, so integration tests and demo mode need no API key.
+**Provider abstraction.** The application depends on its own `IChatModel` / `IEmbeddingService` ports; infrastructure implements them on top of Semantic Kernel's `IChatCompletionService` and `IEmbeddingGenerator`. Claude has its own connector on the official Anthropic SDK. Switching provider is one setting (`Llm__Provider`). The same seam powers demo mode and the integration tests, which need no API key.
 
-**Cost control.** Questions with no relevant passage never reach the LLM. Only follow-up questions pay for a query rewrite, which can use a cheaper model (`Llm__Anthropic__RewriteModel`). Claude is called with low effort for short grounded answers. Answer length is capped. Rate limits are per user. Every call is recorded with its estimated cost, so spend is visible per user, per model and per day.
+**Cost control by design.** Questions with no relevant passage never reach the LLM. Only follow-ups pay for a query rewrite, which can run on a cheaper model (`Llm__Anthropic__RewriteModel`). Claude is called with low effort for short grounded answers, answer length is capped, rate limits are per user, and every call is recorded with its estimated cost.
 
-**Prompt-injection defence.** Document text is untrusted. `<` and `>` in document text are replaced, so a PDF cannot close the `<source>` block or forge `<page>` markers. The system prompt says that source content is data, never instructions. The question is placed after the sources in its own tag.
+**Prompt-injection defence.** Document text is treated as untrusted. `<` and `>` inside documents are replaced, so a PDF cannot close its `<source>` block or forge `<page>` markers. The system prompt states that source content is data, never instructions, and the user's question sits after the sources in its own tag.
 
 ## Evaluation
 
-`eval/` holds a console harness and a golden set of **21 questions** over the two sample PDFs. 18 are answerable, with the expected document and page; 3 are deliberately unanswerable. The harness runs every question through the real API (`/api/search` and the SSE chat endpoint) and measures:
+Quality is measured, not assumed. `eval/` contains a console harness and a golden set of **21 questions** over the two sample PDFs: 18 answerable (with the expected document and page) and 3 deliberately unanswerable. The harness runs every question through the real HTTP API (`/api/search` and the SSE chat endpoint) and reports:
 
-- **Retrieval hit-rate@k**: the gold page is inside one of the top-k chunks. MRR is also reported.
-- **Citation correctness**: at least one citation names the gold document with a page within ±1 of the gold page.
+- **Retrieval hit-rate@k** and **MRR**: is the gold page inside the top-k chunks, and how high?
+- **Citation correctness**: does at least one citation name the gold document and page (±1)?
 - **"Not found" accuracy** on the unanswerable questions.
-- **Faithfulness**: an LLM judge scores whether every claim in the answer is supported by the cited passages (0–1).
+- **Faithfulness**: an LLM judge scores whether every claim is supported by the cited passages (0–1).
 
-**Results in demo mode** (no API key: hashed bag-of-words embeddings + extractive mock model, `k = 6`, run 2026-10-30):
+**Offline baseline** (hashed bag-of-words embeddings + extractive mock model, `k = 6`):
 
 | Metric | Result |
 |---|---|
 | Retrieval hit-rate@6 | 94% (17/18) |
-| Mean reciprocal rank of the gold chunk | 0.82 |
-| Answered (not "not found") on answerable questions | 89% (16/18) |
+| Mean reciprocal rank | 0.82 |
+| Answered on answerable questions | 89% (16/18) |
 | Citation correctness (gold document, page ±1) | 61% (11/18) |
 | Correct "not found" on unanswerable questions | 100% (3/3) |
-| Faithfulness (LLM-as-judge) | not run: no LLM API key was available |
 
-How to read this: these numbers measure the pipeline (chunking, hybrid retrieval, RRF, citation validation, the not-found gate) with offline stand-ins. They are **not** the quality you get with OpenAI embeddings and Claude. The mock "LLM" only copies the sentences that share the most words with the question. The real-provider run has **not been done yet**, because no API key was available while this was built. To produce real numbers, run the harness with your keys (see below); it rewrites `eval/results/latest.md`.
+The offline baseline measures the pipeline itself (chunking, hybrid retrieval, RRF, citation validation, the not-found gate) with deterministic stand-ins, so every change can be checked without spending tokens. Run the same harness against your provider to benchmark real models; it writes the report to `eval/results/latest.md`:
 
 ```bash
 # API running with real providers (see Quick start), then:
@@ -123,7 +155,7 @@ dotnet run --project eval/RagAssistant.Eval -- --api http://localhost:5080 --k 6
 
 ## Quick start
 
-Requires Docker.
+Requires Docker. One command:
 
 ```bash
 git clone https://github.com/Yusufislamyetkin/dotnet-rag-document-assistant.git
@@ -131,11 +163,11 @@ cd dotnet-rag-document-assistant
 docker compose up --build
 ```
 
-Open <http://localhost:8080> and sign in with the demo account `demo@ragassistant.local` / `demo-password-123`. The two sample PDFs are already ingested. With no API keys, the app runs in **demo mode** (mock LLM + hashed embeddings).
+Open <http://localhost:8080> and sign in with `demo@ragassistant.local` / `demo-password-123`. Two sample PDFs are already ingested, so you can ask questions right away. Without API keys the app runs in **demo mode** (offline mock LLM + hashed embeddings).
 
-To use real models, copy `.env.example` to `.env`, set `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY`, and run `docker compose up` again. Keys are read only from environment variables or user-secrets; none are stored in the repository.
+**Use real models:** copy `.env.example` to `.env`, set `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY`, and run `docker compose up` again. Keys are read only from environment variables or user-secrets and are never stored in the repository.
 
-> Switching the embedding provider changes the vector space. Documents embedded with another model are ignored by retrieval: re-upload them, or delete the `pgdata` volume, so they are embedded again.
+> Switching the embedding provider changes the vector space. Documents embedded with another model are ignored by retrieval: re-upload them, or delete the `pgdata` volume so they are embedded again.
 
 Local development without Docker for the API:
 
@@ -207,7 +239,7 @@ event: done
 data: {"messageId":"…","answerFound":true,"inputTokens":4210,"outputTokens":96,"estimatedCostUsd":0.009380,"invalidCitations":0,"type":"done"}
 ```
 
-## Tests
+## Tests & CI
 
 ```bash
 dotnet test tests/RagAssistant.UnitTests          # chunking, RRF, citation parsing, prompt escaping, pricing
@@ -215,7 +247,7 @@ dotnet test tests/RagAssistant.IntegrationTests   # needs Docker: real API + pgv
 npm --prefix web run lint
 ```
 
-The integration tests generate PDFs, upload them, wait for ingestion and then check:
+The integration tests spin up the real API against a pgvector container, generate PDFs, upload them, wait for ingestion and verify that:
 
 - streamed answers carry a citation to the right page;
 - "not found" happens without an LLM call;
@@ -225,28 +257,31 @@ The integration tests generate PDFs, upload them, wait for ingestion and then ch
 - users cannot see each other's documents;
 - input limits are enforced and usage is logged.
 
-GitHub Actions runs build, both test suites, frontend lint and build, and Docker image builds on every push.
+GitHub Actions runs the build, both test suites, frontend lint and build, and the Docker image builds on every push.
 
-## Known limitations
+## Limitations
 
-- The Anthropic and OpenAI connectors compile and plug into the same Semantic Kernel wrapper that the tests exercise with the mock, but they have **not yet been exercised against the live APIs**; every test and the demo use the offline mock. Run the eval with your keys before relying on them.
-- Scanned PDFs (images without a text layer) fail with a clear error; OCR is on the roadmap.
-- Page numbers are physical PDF pages (what the viewer shows), not the printed page labels.
-- The ingestion queue is in-process. Scaling to several API instances needs an external queue.
-- Token counts come from the provider when it reports usage; otherwise they are estimated with the `cl100k_base` tokenizer. Prices are static configuration.
+- Scanned PDFs (images without a text layer) are rejected with a clear error; OCR is on the roadmap.
+- Page numbers are physical PDF pages (what the viewer shows), not printed page labels.
+- The ingestion queue is in-process; running several API instances needs an external queue.
+- Token counts come from the provider when it reports usage, otherwise they are estimated with `cl100k_base`. Prices are static configuration.
 - The vector column is fixed at 1536 dimensions; another embedding size needs a migration.
-- Sample documents: NIST AI 100-1 (AI RMF 1.0) and NIST CSWP 29 (Cybersecurity Framework 2.0), U.S. government works in the public domain.
 
 ## Roadmap
 
 - [ ] OCR for scanned PDFs
-- [ ] DOCX (and other formats) ingestion
+- [ ] DOCX and other formats
 - [ ] Cross-encoder reranker after RRF
 - [ ] Multi-tenant organisations with shared document spaces and roles
 - [ ] Background re-embedding when the embedding model changes
 - [ ] Object storage (S3 / Azure Blob) for uploaded files
-- [ ] Publish eval results for real providers (Claude + OpenAI embeddings)
+
+## Credits
+
+Sample documents: NIST AI 100-1 (AI RMF 1.0) and NIST CSWP 29 (Cybersecurity Framework 2.0), U.S. government works in the public domain.
 
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+<div align="center"><sub>Built by <a href="https://github.com/Yusufislamyetkin">Yusuf İslam Yetkin</a>. Need a document assistant, RAG pipeline or LLM integration for your product? Let's talk.</sub></div>
