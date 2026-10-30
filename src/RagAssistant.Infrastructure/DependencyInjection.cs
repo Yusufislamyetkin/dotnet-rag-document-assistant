@@ -81,6 +81,7 @@ public static class DependencyInjection
         services.AddHostedService<DemoSeeder>();
 
         services.AddScoped<UsageRecorder>();
+        services.AddScoped<UsageQueries>();
         services.AddScoped<DocumentService>();
         services.AddScoped<IngestionProcessor>();
     }
